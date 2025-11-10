@@ -1,10 +1,40 @@
+mod utils;
+
 use std::fmt;
 
 use serde::{Deserialize, Serialize, de, ser};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct Manifest {
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct Manifest {
+    name: String,
+
+    author: String,
+
     version: Version,
+
+    description: String,
+
+    #[serde(rename = "UniqueID")]
+    unique_id: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    update_keys: Option<Vec<String>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    entry_dll: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_pack_for: Option<ModDependency>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    minimum_api_version: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    dependencies: Option<Vec<ModDependency>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    private_aessemblies: Option<Vec<PrivateAssembly>>,
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -13,6 +43,89 @@ pub struct Version {
     minor: u16,
     patch: u16,
     build: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+pub struct ModDependency {
+    #[serde(rename = "UniqueID", alias = "UniqueId")]
+    pub unique_id: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_required: Option<bool>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub minimum_version: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+pub struct PrivateAssembly {
+    pub name: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub used_dynamically: Option<bool>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+pub struct ModCompatibility {
+    pub name: String,
+    pub author: String,
+    pub compatibility: Compatibility,
+    // slug: String,
+    pub mod_pages: Vec<ModPage>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+pub struct Compatibility {
+    pub status: CompatibilityStatus,
+    pub summary: String,
+    pub broke_in: Option<String>,
+    pub unofficial_version: Option<ModPage>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "lowercase")]
+pub enum CompatibilityStatus {
+    Ok,
+    Unofficial,
+    Workaround,
+    Broken,
+    Obsolete,
+    Abandoned,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+pub struct ModPage {
+    pub url: String,
+    pub text: String,
+}
+
+impl Manifest {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn version(&self) -> &Version {
+        &self.version
+    }
+
+    pub fn unique_id(&self) -> &str {
+        &self.unique_id
+    }
+
+    pub fn dependencies(&self) -> &[ModDependency] {
+        self.dependencies.as_deref().unwrap_or_default()
+    }
+}
+
+impl CompatibilityStatus {
+    pub fn inspect(&self) -> bool {
+        matches!(self, Self::Ok)
+    }
 }
 
 impl fmt::Display for Version {
@@ -64,7 +177,7 @@ impl<'de> de::Deserialize<'de> for Version {
                     0
                 };
                 let (patch, other) = if let Some(pa) = parts.next() {
-                    split_patch(pa)?
+                    utils::split_patch(pa)?
                 } else {
                     (0, "")
                 };
@@ -79,24 +192,4 @@ impl<'de> de::Deserialize<'de> for Version {
 
         deserializer.deserialize_str(Visit {})
     }
-}
-
-fn split_patch<E: de::Error>(s: &str) -> Result<(u16, &str), E> {
-    if s.is_empty() {
-        return Err(E::custom("Empty".to_string()));
-    }
-    let patch: u16;
-    let other: &str;
-    if let Some(pos) = s.chars().position(|c| !c.is_ascii_digit()) {
-        let ps = &s[..pos];
-        other = &s[pos..];
-        if ps.is_empty() {
-            return Err(E::custom("Invalid format".to_string()));
-        }
-        patch = ps.parse::<u16>().map_err(E::custom)?;
-    } else {
-        patch = s.parse::<u16>().map_err(E::custom)?;
-        other = "";
-    }
-    Ok((patch, other))
 }
