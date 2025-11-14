@@ -15,7 +15,7 @@ pub struct Manifest {
 
     description: String,
 
-    #[serde(rename = "UniqueID")]
+    #[serde(alias = "UniqueID")]
     unique_id: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
