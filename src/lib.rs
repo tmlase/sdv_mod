@@ -1,8 +1,4 @@
-mod utils;
-
 use serde::{Deserialize, Serialize};
-
-pub use utils::comp_version;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "PascalCase")]
